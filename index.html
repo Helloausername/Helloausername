@@ -124,6 +124,7 @@
         });
 
         const data = await res.json();
+        console.log("Cloudinary response:", data);
 
         if (data.error) throw new Error(data.error.message);
         if (!data.secure_url) throw new Error('No URL returned — check your Cloud name and Upload preset.');
