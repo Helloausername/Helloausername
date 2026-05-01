@@ -9,20 +9,29 @@
                 overflow-y: auto; padding: 12px; margin-bottom: 12px; }
     .msg { margin: 6px 0; }
     .name { font-weight: bold; }
-    input { padding: 8px; width: 70%; border: 1px solid #ddd; border-radius: 6px; }
+    input[type="text"] { padding: 8px; width: 60%; border: 1px solid #ddd; border-radius: 6px; }
     button { padding: 8px 14px; background: #0070f3; color: white;
              border: none; border-radius: 6px; cursor: pointer; }
+    #file-input { margin-top: 8px; }
+    img { max-width: 100%; border-radius: 6px; margin-top: 4px; display: block; }
   </style>
 </head>
 <body>
   <h2>💬 Live Chat</h2>
   <div id="messages"></div>
-  <input id="msg" placeholder="Type a message..." onkeydown="if(event.key==='Enter') send()" />
+  <input type="text" id="msg" placeholder="Type a message..." onkeydown="if(event.key==='Enter') send()" />
   <button onclick="send()">Send</button>
+  <br/><br/>
+  <input type="file" id="file-input" accept="image/*,video/*,.pdf,.doc,.docx" />
+  <button onclick="uploadFile()">Upload</button>
+  <span id="upload-status"></span>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
     import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-database.js";
+
+    const CLOUD_NAME = "Tester";
+    const UPLOAD_PRESET = "Tester";
 
     const firebaseConfig = {
       apiKey: "AIzaSyA3jiEM6zhgB_pG5FBwNToRacCHg-icxEQ",
@@ -43,20 +52,72 @@
 
     // Listen for messages
     onChildAdded(messagesRef, (snapshot) => {
-      const { name, text } = snapshot.val();
+      const { name, text, fileURL, fileName, fileType } = snapshot.val();
       const div = document.createElement('div');
       div.className = 'msg';
-      div.innerHTML = `<span class="name">${name}:</span> ${text}`;
+
+      if (fileURL) {
+        const isImage = fileType && fileType.startsWith('image/');
+        const isVideo = fileType && fileType.startsWith('video/');
+        if (isImage) {
+          div.innerHTML = `<span class="name">${name}:</span><br>
+            <img src="${fileURL}" alt="${fileName}"/>`;
+        } else if (isVideo) {
+          div.innerHTML = `<span class="name">${name}:</span><br>
+            <video src="${fileURL}" controls style="max-width:100%;border-radius:6px;"></video>`;
+        } else {
+          div.innerHTML = `<span class="name">${name}:</span>
+            <a href="${fileURL}" target="_blank">📎 ${fileName}</a>`;
+        }
+      } else {
+        div.innerHTML = `<span class="name">${name}:</span> ${text}`;
+      }
+
       document.getElementById('messages').appendChild(div);
       document.getElementById('messages').scrollTop = 9999;
     });
 
-    // Send message
+    // Send text message
     window.send = () => {
       const input = document.getElementById('msg');
       if (!input.value.trim()) return;
       push(messagesRef, { name: username, text: input.value.trim() });
       input.value = '';
+    };
+
+    // Upload file via Cloudinary
+    window.uploadFile = async () => {
+      const fileInput = document.getElementById('file-input');
+      const status = document.getElementById('upload-status');
+      const file = fileInput.files[0];
+      if (!file) return alert('Please select a file first!');
+
+      status.textContent = ' Uploading...';
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', UPLOAD_PRESET);
+
+      try {
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+
+        await push(messagesRef, {
+          name: username,
+          fileURL: data.secure_url,
+          fileName: file.name,
+          fileType: file.type
+        });
+
+        status.textContent = ' Uploaded!';
+        fileInput.value = '';
+        setTimeout(() => status.textContent = '', 2000);
+      } catch (err) {
+        status.textContent = ' Error: ' + err.message;
+      }
     };
   </script>
 </body>
