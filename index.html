@@ -7,30 +7,41 @@
     body { font-family: sans-serif; max-width: 500px; margin: 40px auto; padding: 0 16px; }
     #messages { border: 1px solid #ddd; border-radius: 8px; height: 300px;
                 overflow-y: auto; padding: 12px; margin-bottom: 12px; }
-    .msg { margin: 6px 0; }
+    .msg { margin: 8px 0; }
     .name { font-weight: bold; }
-    input[type="text"] { padding: 8px; width: 60%; border: 1px solid #ddd; border-radius: 6px; }
+    .controls { display: flex; gap: 8px; margin-bottom: 8px; }
+    input[type="text"] { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 6px; }
     button { padding: 8px 14px; background: #0070f3; color: white;
              border: none; border-radius: 6px; cursor: pointer; }
-    #file-input { margin-top: 8px; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    #upload-row { display: flex; gap: 8px; align-items: center; }
+    #status { font-size: 13px; color: #555; }
     img { max-width: 100%; border-radius: 6px; margin-top: 4px; display: block; }
+    video { max-width: 100%; border-radius: 6px; margin-top: 4px; }
+    a { color: #0070f3; }
   </style>
 </head>
 <body>
   <h2>💬 Live Chat</h2>
   <div id="messages"></div>
-  <input type="text" id="msg" placeholder="Type a message..." onkeydown="if(event.key==='Enter') send()" />
-  <button onclick="send()">Send</button>
-  <br/><br/>
-  <input type="file" id="file-input" accept="image/*,video/*,.pdf,.doc,.docx" />
-  <button onclick="uploadFile()">Upload</button>
-  <span id="upload-status"></span>
+
+  <div class="controls">
+    <input type="text" id="msg" placeholder="Type a message..." onkeydown="if(event.key==='Enter') send()" />
+    <button onclick="send()">Send</button>
+  </div>
+
+  <div id="upload-row">
+    <input type="file" id="file-input" accept="image/*,video/*,.pdf,.doc,.docx" />
+    <button id="upload-btn" onclick="uploadFile()">Upload</button>
+  </div>
+  <div id="status"></div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
     import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-database.js";
 
-    const CLOUD_NAME = "Tester";
+    // ✏️ Replace these with your actual Cloudinary values
+    const CLOUD_NAME = "tester";
     const UPLOAD_PRESET = "Tester";
 
     const firebaseConfig = {
@@ -40,8 +51,7 @@
       projectId: "test-a39a0",
       storageBucket: "test-a39a0.firebasestorage.app",
       messagingSenderId: "60373406658",
-      appId: "1:60373406658:web:943c58016734135c33fc5b",
-      measurementId: "G-1RKZ7GHYLB"
+      appId: "1:60373406658:web:943c58016734135c33fc5b"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -50,9 +60,18 @@
 
     const username = prompt("Enter your name:") || "Anonymous";
 
+    const setStatus = (msg, color = '#555') => {
+      const s = document.getElementById('status');
+      s.style.color = color;
+      s.textContent = msg;
+    };
+
     // Listen for messages
     onChildAdded(messagesRef, (snapshot) => {
-      const { name, text, fileURL, fileName, fileType } = snapshot.val();
+      const val = snapshot.val();
+      if (!val) return;
+
+      const { name, text, fileURL, fileName, fileType } = val;
       const div = document.createElement('div');
       div.className = 'msg';
 
@@ -60,14 +79,11 @@
         const isImage = fileType && fileType.startsWith('image/');
         const isVideo = fileType && fileType.startsWith('video/');
         if (isImage) {
-          div.innerHTML = `<span class="name">${name}:</span><br>
-            <img src="${fileURL}" alt="${fileName}"/>`;
+          div.innerHTML = `<span class="name">${name}:</span><br><img src="${fileURL}" alt="${fileName}"/>`;
         } else if (isVideo) {
-          div.innerHTML = `<span class="name">${name}:</span><br>
-            <video src="${fileURL}" controls style="max-width:100%;border-radius:6px;"></video>`;
+          div.innerHTML = `<span class="name">${name}:</span><br><video src="${fileURL}" controls></video>`;
         } else {
-          div.innerHTML = `<span class="name">${name}:</span>
-            <a href="${fileURL}" target="_blank">📎 ${fileName}</a>`;
+          div.innerHTML = `<span class="name">${name}:</span> <a href="${fileURL}" target="_blank">📎 ${fileName}</a>`;
         }
       } else {
         div.innerHTML = `<span class="name">${name}:</span> ${text}`;
@@ -77,22 +93,25 @@
       document.getElementById('messages').scrollTop = 9999;
     });
 
-    // Send text message
+    // Send text
     window.send = () => {
       const input = document.getElementById('msg');
-      if (!input.value.trim()) return;
-      push(messagesRef, { name: username, text: input.value.trim() });
+      const text = input.value.trim();
+      if (!text) return;
+      push(messagesRef, { name: username, text });
       input.value = '';
     };
 
-    // Upload file via Cloudinary
+    // Upload file
     window.uploadFile = async () => {
       const fileInput = document.getElementById('file-input');
-      const status = document.getElementById('upload-status');
+      const btn = document.getElementById('upload-btn');
       const file = fileInput.files[0];
-      if (!file) return alert('Please select a file first!');
 
-      status.textContent = ' Uploading...';
+      if (!file) return setStatus('⚠️ Please select a file first.', 'orange');
+
+      btn.disabled = true;
+      setStatus('⏳ Uploading...', '#555');
 
       const formData = new FormData();
       formData.append('file', file);
@@ -103,7 +122,11 @@
           method: 'POST',
           body: formData
         });
+
         const data = await res.json();
+
+        if (data.error) throw new Error(data.error.message);
+        if (!data.secure_url) throw new Error('No URL returned — check your Cloud name and Upload preset.');
 
         await push(messagesRef, {
           name: username,
@@ -112,11 +135,13 @@
           fileType: file.type
         });
 
-        status.textContent = ' Uploaded!';
+        setStatus('✅ Uploaded!', 'green');
         fileInput.value = '';
-        setTimeout(() => status.textContent = '', 2000);
+        setTimeout(() => setStatus(''), 3000);
       } catch (err) {
-        status.textContent = ' Error: ' + err.message;
+        setStatus('❌ Error: ' + err.message, 'red');
+      } finally {
+        btn.disabled = false;
       }
     };
   </script>
