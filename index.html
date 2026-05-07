@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chat</title>
+  <style>
+    body { font-family: sans-serif; max-width: 500px; margin: 40px auto; padding: 0 16px; }
+    #messages { border: 1px solid #ddd; border-radius: 8px; height: 300px;
+                overflow-y: auto; padding: 12px; margin-bottom: 12px; }
+    .msg { margin: 8px 0; }
+    .name { font-weight: bold; }
+    .controls { display: flex; gap: 8px; margin-bottom: 8px; }
+    input[type="text"] { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 6px; }
+    button { padding: 8px 14px; background: #0070f3; color: white;
+             border: none; border-radius: 6px; cursor: pointer; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    #upload-row { display: flex; gap: 8px; align-items: center; }
+    #status { font-size: 13px; color: #555; }
+    img { max-width: 100%; border-radius: 6px; margin-top: 4px; display: block; }
+    video { max-width: 100%; border-radius: 6px; margin-top: 4px; }
+    a { color: #0070f3; }
+  </style>
+</head>
+<body>
+  <h2>💬 Live Chat</h2>
+  <div id="messages"></div>
+
+  <div class="controls">
+    <input type="text" id="msg" placeholder="Type a message..." onkeydown="if(event.key==='Enter') send()" />
+    <button onclick="send()">Send</button>
+  </div>
+
+  <div id="upload-row">
+    <input type="file" id="file-input" accept="image/*,video/*,.pdf,.doc,.docx" />
+    <button id="upload-btn" onclick="uploadFile()">Upload</button>
+  </div>
+  <div id="status"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
+    import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-database.js";
+
+    const CLOUD_NAME = "dpdogbsud";
+    const UPLOAD_PRESET = "Tester";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA3jiEM6zhgB_pG5FBwNToRacCHg-icxEQ",
+      authDomain: "test-a39a0.firebaseapp.com",
+      databaseURL: "https://test-a39a0-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "test-a39a0",
+      storageBucket: "test-a39a0.firebasestorage.app",
+      messagingSenderId: "60373406658",
+      appId: "1:60373406658:web:943c58016734135c33fc5b"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const messagesRef = ref(db, 'messages');
+
+    const username = prompt("Enter your name:") || "Anonymous";
+
+    const setStatus = (msg, color = '#555') => {
+      const s = document.getElementById('status');
+      s.style.color = color;
+      s.textContent = msg;
+    };
+
+    // Listen for messages
+    onChildAdded(messagesRef, (snapshot) => {
+      const val = snapshot.val();
+      if (!val) return;
+
+      const { name, text, fileURL, fileName, fileType } = val;
+      const div = document.createElement('div');
+      div.className = 'msg';
+
+      if (fileURL) {
+        const isImage = fileType && fileType.startsWith('image/');
+        const isVideo = fileType && fileType.startsWith('video/');
+        if (isImage) {
+          div.innerHTML = `<span class="name">${name}:</span><br><img src="${fileURL}" alt="${fileName}"/>`;
+        } else if (isVideo) {
+          div.innerHTML = `<span class="name">${name}:</span><br><video src="${fileURL}" controls></video>`;
+        } else {
+          div.innerHTML = `<span class="name">${name}:</span> <a href="${fileURL}" target="_blank">📎 ${fileName}</a>`;
+        }
+      } else {
+        // Safe text rendering — HTML tags shown as literal text
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'name';
+        nameSpan.textContent = name + ': ';
+        const textNode = document.createTextNode(text);
+        div.appendChild(nameSpan);
+        div.appendChild(textNode);
+      }
+
+      document.getElementById('messages').appendChild(div);
+      document.getElementById('messages').scrollTop = 9999;
+    });
+
+    // Send text
+    window.send = () => {
+      const input = document.getElementById('msg');
+      const text = input.value.trim();
+      if (!text) return;
+      push(messagesRef, { name: username, text });
+      input.value = '';
+    };
+
+    // Upload file
+    window.uploadFile = async () => {
+      const fileInput = document.getElementById('file-input');
+      const btn = document.getElementById('upload-btn');
+      const file = fileInput.files[0];
+
+      if (!file) return setStatus('⚠️ Please select a file first.', 'orange');
+
+      btn.disabled = true;
+      setStatus('⏳ Uploading...', '#555');
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', UPLOAD_PRESET);
+
+      try {
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await res.json();
+        console.log("Cloudinary response:", data);
+
+        if (data.error) throw new Error(data.error.message);
+        if (!data.secure_url) throw new Error('No URL returned — check your Cloud name and Upload preset.');
+
+        await push(messagesRef, {
+          name: username,
+          fileURL: data.secure_url,
+          fileName: file.name,
+          fileType: file.type
+        });
+
+        setStatus('✅ Uploaded!', 'green');
+        fileInput.value = '';
+        setTimeout(() => setStatus(''), 3000);
+      } catch (err) {
+        setStatus('❌ Error: ' + err.message, 'red');
+      } finally {
+        btn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>
