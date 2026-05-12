@@ -1,2 +1,3 @@
-# every-end-everywhere
-stupid chud attempt to port geometry dash to web and other platforms kinda not really
+# Check out both of my websites!
+First one is a chatting website (testing servers)
+And the second one im modifing
