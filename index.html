@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Chat</title>
+  <title>Test 🥹</title>
   <style>
     body { font-family: sans-serif; max-width: 500px; margin: 40px auto; padding: 0 16px; }
     #messages { border: 1px solid #ddd; border-radius: 8px; height: 300px;
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <h2>💬 Live Chat</h2>
+  <h2>Chatting</h2>
   <div id="messages"></div>
 
   <div class="controls">
@@ -113,10 +113,10 @@
       const btn = document.getElementById('upload-btn');
       const file = fileInput.files[0];
 
-      if (!file) return setStatus('⚠️ Please select a file first.', 'orange');
+      if (!file) return setStatus('Select a file dumbass', 'orange');
 
       btn.disabled = true;
-      setStatus('⏳ Uploading...', '#555');
+      setStatus('Uploading...', '#555');
 
       const formData = new FormData();
       formData.append('file', file);
@@ -145,7 +145,7 @@
         fileInput.value = '';
         setTimeout(() => setStatus(''), 3000);
       } catch (err) {
-        setStatus('❌ Error: ' + err.message, 'red');
+        setStatus('Error: ' + err.message, 'red');
       } finally {
         btn.disabled = false;
       }
