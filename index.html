@@ -19,10 +19,13 @@
     img { max-width: 100%; border-radius: 6px; margin-top: 4px; display: block; }
     video { max-width: 100%; border-radius: 6px; margin-top: 4px; }
     a { color: #0070f3; }
+    #name-display { font-size: 13px; color: #555; margin-bottom: 8px; }
+    #name-display button { padding: 2px 8px; font-size: 12px; background: #888; }
   </style>
 </head>
 <body>
   <h2>Chatting</h2>
+  <div id="name-display"></div>
   <div id="messages"></div>
 
   <div class="controls">
@@ -57,7 +60,38 @@
     const db = getDatabase(app);
     const messagesRef = ref(db, 'messages');
 
-    const username = prompt("Enter your name:") || "Anonymous";
+    // --- Cookie helpers ---
+    function setCookie(name, value, days = 365) {
+      const expires = new Date(Date.now() + days * 864e5).toUTCString();
+      document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
+    }
+
+    function getCookie(name) {
+      return document.cookie.split('; ').reduce((acc, part) => {
+        const [k, v] = part.split('=');
+        return k === name ? decodeURIComponent(v) : acc;
+      }, null);
+    }
+
+    // --- Load or prompt for username ---
+    let username = getCookie('chat_username');
+    if (!username) {
+      username = prompt("Enter your name:") || "Anonymous";
+      setCookie('chat_username', username);
+    }
+
+    // Show name with a "Change" button
+    const nameDisplay = document.getElementById('name-display');
+    nameDisplay.innerHTML = `Chatting as <strong>${username}</strong> <button onclick="changeName()">Change</button>`;
+
+    window.changeName = () => {
+      const newName = prompt("Enter a new name:", username);
+      if (newName && newName.trim()) {
+        username = newName.trim();
+        setCookie('chat_username', username);
+        nameDisplay.innerHTML = `Chatting as <strong>${username}</strong> <button onclick="changeName()">Change</button>`;
+      }
+    };
 
     const setStatus = (msg, color = '#555') => {
       const s = document.getElementById('status');
@@ -85,7 +119,6 @@
           div.innerHTML = `<span class="name">${name}:</span> <a href="${fileURL}" target="_blank">📎 ${fileName}</a>`;
         }
       } else {
-        // Safe text rendering — HTML tags shown as literal text
         const nameSpan = document.createElement('span');
         nameSpan.className = 'name';
         nameSpan.textContent = name + ': ';
@@ -98,7 +131,6 @@
       document.getElementById('messages').scrollTop = 9999;
     });
 
-    // Send text
     window.send = () => {
       const input = document.getElementById('msg');
       const text = input.value.trim();
@@ -107,7 +139,6 @@
       input.value = '';
     };
 
-    // Upload file
     window.uploadFile = async () => {
       const fileInput = document.getElementById('file-input');
       const btn = document.getElementById('upload-btn');
@@ -129,8 +160,6 @@
         });
 
         const data = await res.json();
-        console.log("Cloudinary response:", data);
-
         if (data.error) throw new Error(data.error.message);
         if (!data.secure_url) throw new Error('No URL returned — check your Cloud name and Upload preset.');
 
